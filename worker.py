@@ -81,14 +81,28 @@ while True:
         # =========================
         # CLEAN IMAGE (CRITICAL FIX)
         # =========================
+import cv2
 
-        try:
-            img = Image.open(TEMP_IMAGE)
-            img = img.convert("RGB")
-            img.thumbnail((1280, 1280))
-            img.save(TEMP_IMAGE, format="JPEG")
-        except Exception as e:
-            print("⚠️ Image preprocessing failed:", e)
+try:
+    # Read with OpenCV (forces proper decode)
+    img = cv2.imread(TEMP_IMAGE)
+
+    if img is None:
+        raise Exception("cv2 failed to read image")
+
+    # Resize safely
+    h, w = img.shape[:2]
+    max_size = 1280
+
+    if max(h, w) > max_size:
+        scale = max_size / max(h, w)
+        img = cv2.resize(img, (int(w * scale), int(h * scale)))
+
+    # Save clean image
+    cv2.imwrite(TEMP_IMAGE, img)
+
+except Exception as e:
+    print("🔥 OpenCV preprocessing failed:", e)
 
         # =========================
         # LOAD DETECTOR (ONCE)
