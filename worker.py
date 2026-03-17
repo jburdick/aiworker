@@ -93,7 +93,13 @@ while True:
             detection_threshold=0.2
         )
 
-        raw_detections = results.get("detections", [])
+        if not results:
+            raw_detections = []
+        else:
+            raw_detections = results.get("detections")
+
+        if raw_detections is None:
+            raw_detections = []
 
         # =========================
         # FILTER: ANIMALS ONLY
