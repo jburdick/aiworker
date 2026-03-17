@@ -5,7 +5,7 @@ from megadetector.detection import run_detector
 import os
 import json
 from dotenv import load_dotenv
-from PIL import Image
+import cv2  # ✅ import at top (IMPORTANT)
 
 # =========================
 # LOAD ENV
@@ -44,7 +44,6 @@ while True:
     try:
         cur = conn.cursor()
 
-        # Get next unprocessed media
         cur.execute("""
             SELECT id, file_url
             FROM media
@@ -74,35 +73,30 @@ while True:
             time.sleep(2)
             continue
 
-        # Save raw image
         with open(TEMP_IMAGE, "wb") as f:
             f.write(response.content)
 
         # =========================
-        # CLEAN IMAGE (CRITICAL FIX)
+        # CLEAN IMAGE WITH OPENCV
         # =========================
-import cv2
 
-try:
-    # Read with OpenCV (forces proper decode)
-    img = cv2.imread(TEMP_IMAGE)
+        try:
+            img = cv2.imread(TEMP_IMAGE)
 
-    if img is None:
-        raise Exception("cv2 failed to read image")
+            if img is None:
+                raise Exception("cv2 failed to read image")
 
-    # Resize safely
-    h, w = img.shape[:2]
-    max_size = 1280
+            h, w = img.shape[:2]
+            max_size = 1280
 
-    if max(h, w) > max_size:
-        scale = max_size / max(h, w)
-        img = cv2.resize(img, (int(w * scale), int(h * scale)))
+            if max(h, w) > max_size:
+                scale = max_size / max(h, w)
+                img = cv2.resize(img, (int(w * scale), int(h * scale)))
 
-    # Save clean image
-    cv2.imwrite(TEMP_IMAGE, img)
+            cv2.imwrite(TEMP_IMAGE, img)
 
-except Exception as e:
-    print("🔥 OpenCV preprocessing failed:", e)
+        except Exception as e:
+            print("⚠️ OpenCV preprocessing failed:", e)
 
         # =========================
         # LOAD DETECTOR (ONCE)
@@ -118,7 +112,7 @@ except Exception as e:
 
         results = detector.generate_detections_one_image(
             TEMP_IMAGE,
-            detection_threshold=0.1
+            detection_threshold=0.05  # 🔥 lowered for sensitivity
         )
 
         if not results:
