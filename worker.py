@@ -105,11 +105,9 @@ while True:
         # FILTER: ANIMALS ONLY
         # =========================
 
-        animal_detections = [
-            d for d in raw_detections
-            if str(d.get("category")) == "1" and d.get("conf", 0) > 0.3
-        ]
+        print("RAW DETECTIONS:", raw_detections)
 
+        animal_detections = raw_detections or []
         # =========================
         # DERIVED INTELLIGENCE
         # =========================
