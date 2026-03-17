@@ -4,11 +4,18 @@ import psycopg2
 from megadetector.detection import run_detector
 import os
 import json
+from dotenv import load_dotenv
+
+# =========================
+# LOAD ENV
+# =========================
+
+load_dotenv()
+DB_URL = os.getenv("DATABASE_URL")
 
 # =========================
 # CONFIG
 # =========================
-
 
 MODEL_PATH = "models/md_v5a.0.0.pt"
 TEMP_IMAGE = "temp.jpg"
@@ -36,11 +43,12 @@ while True:
     try:
         cur = conn.cursor()
 
-        # Get unprocessed media
+        # Get next unprocessed media
         cur.execute("""
             SELECT id, file_url
             FROM media
             WHERE ai_processed = false
+            ORDER BY id ASC
             LIMIT 1;
         """)
 
@@ -72,7 +80,6 @@ while True:
         # LOAD DETECTOR (ONCE)
         # =========================
 
-        global detector
         if detector is None:
             print("🧠 Loading MegaDetector model...")
             detector = run_detector.load_detector(MODEL_PATH)
@@ -86,7 +93,27 @@ while True:
             detection_threshold=0.2
         )
 
-        detections = results.get("detections", [])
+        raw_detections = results.get("detections", [])
+
+        # =========================
+        # FILTER: ANIMALS ONLY
+        # =========================
+
+        animal_detections = [
+            d for d in raw_detections
+            if str(d.get("category")) == "1" and d.get("conf", 0) > 0.3
+        ]
+
+        # =========================
+        # DERIVED INTELLIGENCE
+        # =========================
+
+        animal_detected = len(animal_detections) > 0
+        detection_count = len(animal_detections)
+        max_confidence = max(
+            [d["conf"] for d in animal_detections],
+            default=0
+        )
 
         # =========================
         # SAVE TO DB
@@ -95,11 +122,20 @@ while True:
         cur.execute("""
             UPDATE media
             SET detections = %s,
-                ai_processed = true
+                ai_processed = true,
+                animal_detected = %s,
+                detection_count = %s,
+                max_confidence = %s
             WHERE id = %s;
-        """, (json.dumps(detections), media_id))
+        """, (
+            json.dumps(animal_detections),
+            animal_detected,
+            detection_count,
+            max_confidence,
+            media_id
+        ))
 
-        print(f"✅ Done: {media_id}")
+        print(f"✅ Done: {media_id} | Animals: {detection_count}")
 
     except Exception as e:
         print("🔥 ERROR:", e)
