@@ -74,25 +74,21 @@ while True:
             time.sleep(2)
             continue
 
-# Save raw image
-with open(TEMP_IMAGE, "wb") as f:
-    f.write(response.content)
+        # Save raw image
+        with open(TEMP_IMAGE, "wb") as f:
+            f.write(response.content)
 
-# 🔥 CLEAN + NORMALIZE IMAGE (CRITICAL FIX)
-try:
-    img = Image.open(TEMP_IMAGE)
+        # =========================
+        # CLEAN IMAGE (CRITICAL FIX)
+        # =========================
 
-    # Convert to RGB (fix grayscale / weird formats)
-    img = img.convert("RGB")
-
-    # Resize to safe dimensions (prevents model crashes)
-    img.thumbnail((1280, 1280))
-
-    # Re-save clean image
-    img.save(TEMP_IMAGE, format="JPEG")
-
-except Exception as e:
-    print("🔥 Image preprocessing failed:", e)
+        try:
+            img = Image.open(TEMP_IMAGE)
+            img = img.convert("RGB")
+            img.thumbnail((1280, 1280))
+            img.save(TEMP_IMAGE, format="JPEG")
+        except Exception as e:
+            print("⚠️ Image preprocessing failed:", e)
 
         # =========================
         # LOAD DETECTOR (ONCE)
@@ -108,24 +104,25 @@ except Exception as e:
 
         results = detector.generate_detections_one_image(
             TEMP_IMAGE,
-            detection_threshold=0.2
+            detection_threshold=0.1
         )
 
         if not results:
             raw_detections = []
         else:
-            raw_detections = results.get("detections")
+            raw_detections = results.get("detections") or []
 
-        if raw_detections is None:
-            raw_detections = []
+        print("RAW DETECTIONS:", raw_detections)
 
         # =========================
         # FILTER: ANIMALS ONLY
         # =========================
 
-        print("RAW DETECTIONS:", raw_detections)
+        animal_detections = [
+            d for d in raw_detections
+            if str(d.get("category")) == "1"
+        ]
 
-        animal_detections = raw_detections or []
         # =========================
         # DERIVED INTELLIGENCE
         # =========================
