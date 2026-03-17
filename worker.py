@@ -5,6 +5,7 @@ from megadetector.detection import run_detector
 import os
 import json
 from dotenv import load_dotenv
+from PIL import Image
 
 # =========================
 # LOAD ENV
@@ -73,8 +74,25 @@ while True:
             time.sleep(2)
             continue
 
-        with open(TEMP_IMAGE, "wb") as f:
-            f.write(response.content)
+# Save raw image
+with open(TEMP_IMAGE, "wb") as f:
+    f.write(response.content)
+
+# 🔥 CLEAN + NORMALIZE IMAGE (CRITICAL FIX)
+try:
+    img = Image.open(TEMP_IMAGE)
+
+    # Convert to RGB (fix grayscale / weird formats)
+    img = img.convert("RGB")
+
+    # Resize to safe dimensions (prevents model crashes)
+    img.thumbnail((1280, 1280))
+
+    # Re-save clean image
+    img.save(TEMP_IMAGE, format="JPEG")
+
+except Exception as e:
+    print("🔥 Image preprocessing failed:", e)
 
         # =========================
         # LOAD DETECTOR (ONCE)
