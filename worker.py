@@ -1,11 +1,11 @@
 import time
 import requests
 import psycopg2
-from megadetector.detection import run_detector
 import os
 import json
 from dotenv import load_dotenv
-import cv2  # ✅ import at top (IMPORTANT)
+import cv2
+from ultralytics import YOLO
 
 # =========================
 # LOAD ENV
@@ -18,14 +18,14 @@ DB_URL = os.getenv("DATABASE_URL")
 # CONFIG
 # =========================
 
-MODEL_PATH = "models/md_v5a.0.0.pt"
 TEMP_IMAGE = "temp.jpg"
 
 # =========================
-# GLOBAL DETECTOR
+# LOAD YOLO MODEL (CPU)
 # =========================
 
-detector = None
+print("🧠 Loading YOLOv8 model...")
+model = YOLO("yolov8n.pt")  # auto-downloads on first run
 
 # =========================
 # DB CONNECTION
@@ -77,7 +77,7 @@ while True:
             f.write(response.content)
 
         # =========================
-        # CLEAN IMAGE WITH OPENCV
+        # CLEAN IMAGE (OPENCV)
         # =========================
 
         try:
@@ -96,39 +96,38 @@ while True:
             cv2.imwrite(TEMP_IMAGE, img)
 
         except Exception as e:
-            print("⚠️ OpenCV preprocessing failed:", e)
+            print("⚠️ Image preprocessing failed:", e)
 
         # =========================
-        # LOAD DETECTOR (ONCE)
+        # RUN YOLO DETECTION
         # =========================
 
-        if detector is None:
-            print("🧠 Loading MegaDetector model...")
-            detector = run_detector.load_detector(MODEL_PATH)
+        results = model(TEMP_IMAGE)
 
-        # =========================
-        # RUN DETECTION
-        # =========================
+        raw_detections = []
 
-        results = detector.generate_detections_one_image(
-            TEMP_IMAGE,
-            detection_threshold=0.05  # 🔥 lowered for sensitivity
-        )
+        for r in results:
+            if r.boxes is None:
+                continue
 
-        if not results:
-            raw_detections = []
-        else:
-            raw_detections = results.get("detections") or []
+            for box in r.boxes:
+                cls = int(box.cls[0])
+                conf = float(box.conf[0])
+
+                raw_detections.append({
+                    "category": str(cls),
+                    "conf": conf
+                })
 
         print("RAW DETECTIONS:", raw_detections)
 
         # =========================
-        # FILTER: ANIMALS ONLY
+        # FILTER DETECTIONS (confidence only for now)
         # =========================
 
         animal_detections = [
             d for d in raw_detections
-            if str(d.get("category")) == "1"
+            if d["conf"] > 0.25
         ]
 
         # =========================
